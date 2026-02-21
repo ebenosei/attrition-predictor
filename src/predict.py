@@ -62,6 +62,7 @@ def predict_batch(df: pd.DataFrame, artifact: dict | None = None) -> pd.DataFram
     """Predict attrition risk for a batch of employees.
 
     Returns the input DataFrame with added risk_score and risk_tier columns.
+    Handles missing columns, wrong dtypes, and NaN values gracefully.
     """
     if artifact is None:
         artifact = load_model()
@@ -69,13 +70,42 @@ def predict_batch(df: pd.DataFrame, artifact: dict | None = None) -> pd.DataFram
     pipeline = artifact["pipeline"]
     columns = artifact["columns"]
 
-    # Ensure columns match
+    from src.preprocess import CATEGORICAL_FEATURES, NUMERIC_FEATURES
+
     input_df = df.copy()
+
+    # Add missing columns with sensible defaults
     for col in columns:
         if col not in input_df.columns:
-            input_df[col] = 0
+            if col in CATEGORICAL_FEATURES:
+                input_df[col] = "Unknown"
+            else:
+                input_df[col] = 0
 
-    model_input = input_df[columns]
+    model_input = input_df[columns].copy()
+
+    # Coerce numeric columns to numeric dtype, replacing non-parseable values with NaN
+    for col in NUMERIC_FEATURES:
+        if col in model_input.columns:
+            model_input[col] = pd.to_numeric(model_input[col], errors="coerce")
+
+    # Fill remaining NaNs: median for numeric, mode/default for categorical
+    for col in NUMERIC_FEATURES:
+        if col in model_input.columns and model_input[col].isna().any():
+            median_val = model_input[col].median()
+            fill_val = median_val if pd.notna(median_val) else 0
+            model_input[col] = model_input[col].fillna(fill_val)
+
+    for col in CATEGORICAL_FEATURES:
+        if col in model_input.columns and model_input[col].isna().any():
+            mode_vals = model_input[col].mode()
+            fill_val = mode_vals.iloc[0] if len(mode_vals) > 0 else "Unknown"
+            model_input[col] = model_input[col].fillna(fill_val)
+
+    # Ensure categorical columns are strings (handles mixed types)
+    for col in CATEGORICAL_FEATURES:
+        if col in model_input.columns:
+            model_input[col] = model_input[col].astype(str)
 
     probabilities = pipeline.predict_proba(model_input)[:, 1]
     result = df.copy()
