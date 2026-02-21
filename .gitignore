@@ -1,0 +1,37 @@
+# Data
+data/raw/
+
+# Models (but keep best_model.joblib for Streamlit Cloud deployment)
+models/*
+!models/best_model.joblib
+!models/metrics.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
